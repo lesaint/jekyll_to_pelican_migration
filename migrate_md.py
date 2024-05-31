@@ -48,7 +48,7 @@ class HeaderTransformer(LineProcessor):
         for k, v in self.content.items():
             match k:
                 case "title":
-                    res.append("Title: " + v)
+                    res.append("Title: " + v.strip('"'))
                 case "tags":
                     res.append("Tags: " + ", ".join(v))
 
