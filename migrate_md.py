@@ -51,6 +51,8 @@ class HeaderTransformer(LineProcessor):
                     res.append("Title: " + v.strip('"'))
                 case "tags":
                     res.append("Tags: " + ", ".join(v))
+                case "description":
+                    res.append("Summary: " + v)
 
         return res
 
