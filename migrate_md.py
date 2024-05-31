@@ -15,11 +15,6 @@ class LineProcessor:
         return False, line
 
 
-class AddLine(LineProcessor):
-    def process_line(self, line_number: int, line: str) -> (bool, str | None):
-        return True, f"{line_number}: {line}"
-
-
 class HeaderTransformer(LineProcessor):
     def __init__(self):
         self.primed = False
@@ -40,9 +35,29 @@ class HeaderTransformer(LineProcessor):
         return False, line
 
 
+class CodeBlocks(LineProcessor):
+    _opening_start = "{% highlight"
+    _opening_end = "%}"
+
+    def process_line(self, line_number: int, line: str) -> (bool, str | None):
+        try:
+            s = line.index(self._opening_start)
+            e = line.index(self._opening_end, s + len(self._opening_start))
+            language = line[s+len(self._opening_start):e].strip()
+            return True, f"```{language}\n"
+        except ValueError:
+            pass
+
+        if "{% endhighlight %}" in line:
+            return True, "```\n"
+
+        return False, line
+
+
 def _new_processor():
     return [
         HeaderTransformer(),
+        CodeBlocks()
     ]
 
 
