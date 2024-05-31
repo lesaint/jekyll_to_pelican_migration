@@ -54,10 +54,21 @@ class CodeBlocks(LineProcessor):
         return False, line
 
 
+class Toc(LineProcessor):
+    def process_line(self, line_number: int, line: str) -> (bool, str | None):
+        if "* Table of Contents" in line:
+            return True, None
+        if "{:toc}" in line:
+            return True, "[TOC]\n"
+
+        return False, line
+
+
 def _new_processor():
     return [
         HeaderTransformer(),
-        CodeBlocks()
+        CodeBlocks(),
+        Toc(),
     ]
 
 
