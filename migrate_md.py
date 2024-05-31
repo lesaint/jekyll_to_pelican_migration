@@ -119,11 +119,11 @@ class InternalContentLinks(LineProcessor):
     _post_url_tag = "post_url"
 
     @staticmethod
-    def _customize_link_path(link_content: str) -> str:
+    def _customize_link_path(link_path: str) -> str:
         for known_relative_path in ["articles/", "tips/"]:
-            if link_content.startswith(known_relative_path):
-                return "/" + link_content
-        return link_content
+            if link_path.startswith(known_relative_path):
+                return "/" + link_path + ".md"
+        return link_path
 
     def process_line(self, line_number: int, line: str) -> (bool, str | None):
         new_line = line
@@ -144,10 +144,49 @@ class InternalContentLinks(LineProcessor):
                         raise RuntimeError(f"Can not find post_url in {link_path}")
                     link_path = link_path[len(self._post_url_tag) + 1:].strip()
                     link_path = self._customize_link_path(link_path)
-                    new_line = new_line[0:op+pp+1] + "{filename}" + f"{link_path}.md" + new_line[op+pe+3:]
+                    new_line = new_line[0:op+pp+1] + "{filename}" + link_path + new_line[op+pe+3:]
                 else:
                     raise RuntimeError(f"Can not find markers in {link_path}")
                 pos = new_line.find(self._post_url_tag)
+        except ValueError as e:
+            raise RuntimeError("Failed to find parenthesis within range") from e
+
+        return True, new_line
+
+
+class SiteLinks(LineProcessor):
+    _site_url_tag = "site.url"
+
+    @staticmethod
+    def _customize_link_path(link_path: str) -> str:
+        resources_prefix = "/resources/"
+        if link_path.startswith(resources_prefix):
+            return "/images/" + link_path[len(resources_prefix):]
+        return link_path
+
+    def process_line(self, line_number: int, line: str) -> (bool, str | None):
+        new_line = line
+        pos = new_line.find(self._site_url_tag)
+        if pos < 0:
+            return False, line
+
+        try:
+            while pos > -1:
+                op = new_line.index("(", pos - 5, pos)
+                ep = new_line.index(")")
+                link_path = new_line[op+1:ep].strip()
+                pp = link_path.find("{{")
+                pe = link_path.find("}}")
+                if pp > -1 and pe > -1:
+                    site_url = link_path[pp+2:pe].strip()
+                    if site_url != self._site_url_tag:
+                        raise RuntimeError(f"Can not find tag in {link_path}")
+                    link_path = link_path[pe+2:].strip()
+                    link_path = self._customize_link_path(link_path)
+                    new_line = new_line[0:op + pp + 1] + "{static}" + link_path + new_line[ep:]
+                else:
+                    raise RuntimeError(f"Can not find markers in {link_path}")
+                pos = new_line.find(self._site_url_tag)
         except ValueError as e:
             raise RuntimeError("Failed to find parenthesis within range") from e
 
@@ -160,6 +199,7 @@ def _create_processors():
         CodeBlocks(),
         Toc(),
         InternalContentLinks(),
+        SiteLinks(),
     ]
 
 
