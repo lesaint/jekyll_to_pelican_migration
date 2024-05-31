@@ -17,8 +17,42 @@ class LineProcessor:
 
 class HeaderTransformer(LineProcessor):
     def __init__(self):
-        self.primed = False
-        self.completed = False
+        self.primed: bool = False
+        self.completed: bool = False
+        self.content: dict[str: str | list[str]] = {}
+        self.current_tag: str | None = None
+
+    def _process_tag(self, tag: str, value: str) -> None:
+        # force lower case to ease search
+        tag = tag.strip().lower()
+        # remove extra spaces but most importantly, remove new line char
+        value = value.strip()
+        self.current_tag = tag
+        if value:
+            self.content[self.current_tag] = value
+
+    def _process_item(self, item: str):
+        # remove extra spaces but most importantly, remove new line char
+        item = item.strip()
+        if not self.current_tag:
+            raise RuntimeError("item found while there is no current tag")
+        if self.current_tag in self.content:
+            if isinstance(self.content[self.current_tag], str):
+                raise RuntimeError(f"item found but tag {self.current_tag} already has a value")
+            self.content[self.current_tag].append(item)
+        else:
+            self.content[self.current_tag] = [item]
+
+    def _new_header_content(self) -> list[str]:
+        res = []
+        for k, v in self.content.items():
+            match k:
+                case "title":
+                    res.append("Title: " + v)
+                case "tags":
+                    res.append("Tags: " + ", ".join(v))
+
+        return res
 
     def process_line(self, line_number: int, line: str) -> (bool, str | None):
         if line_number == 0 and line == "---\n":
@@ -28,8 +62,23 @@ class HeaderTransformer(LineProcessor):
         if not self.primed or self.completed:
             return False, line
 
+        try:
+            colon_index = line.index(":")
+            if colon_index > 1:
+                self._process_tag(line[:colon_index], line[colon_index+1:])
+            return True, None
+        except ValueError:
+            pass
+
+        if line.lstrip().startswith("- "):
+            self._process_item(line[line.index("-")+1:].strip())
+            return True, None
+
         if line == "---\n":
             self.completed = True
+            new_lines = self._new_header_content()
+            if new_lines:
+                return True, "\n".join(new_lines) + "\n"
             return True, None
 
         return False, line
