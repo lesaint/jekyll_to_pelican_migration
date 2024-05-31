@@ -143,9 +143,6 @@ def migrate(md_file):
             # if no processor modified the line, keep it
             if not modified:
                 f_md.write(l)
-            line_count = n
-
-    print(n)
 
 
 def main():
