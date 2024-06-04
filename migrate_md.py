@@ -12,10 +12,22 @@ pattern: pattern relative to the current directory, ending with ".md" (eg. *.md,
 
 class LineProcessor:
     def process_line(self, line_number: int, line: str) -> (bool, str | None):
+        """
+        :param line_number: the number (O-indexed) in the file of the provided line
+        :param line: the line, including line return character(s)
+        :return: False as tuple's 1st value if the processor ignored the line, in which case the 2nd value can be
+                 anything (but typically the provided line) and will be ignored by the caller
+                 True as tuple's 1st value if processor processed the line, in which case the 2nd value will be used by
+                 the caller to replace the line (if not `None`) or remove it (if `None`).
+                 The value can be some text, a line (ie. ending with line return character(s)) or multiple lines.
+        """
         return False, line
 
 
 class HeaderTransformer(LineProcessor):
+    """This LineProcessor will process all lines of the header.
+    The header is defined by `---\n` on line 0 until the next line with `---\n`
+    """
     def __init__(self):
         self.primed: bool = False
         self.completed: bool = False
@@ -57,6 +69,11 @@ class HeaderTransformer(LineProcessor):
         return res
 
     def process_line(self, line_number: int, line: str) -> (bool, str | None):
+        """
+        :return: (True, None) for all lines of the header, except for the closing line with `---/n` where it will return
+                 (True, new_header_content) where new_header_content are the lines of the new header
+                 otherwise (False, line)
+        """
         if line_number == 0 and line == "---\n":
             self.primed = True
             return True, None
@@ -87,6 +104,10 @@ class HeaderTransformer(LineProcessor):
 
 
 class CodeBlocks(LineProcessor):
+    """
+    Use Pelican compatible syntax for opening and close code blocks
+    Replace the whole line as long as Jenkins opening or closing patterns are found in the line
+    """
     _opening_start = "{% highlight"
     _opening_end = "%}"
 
@@ -106,6 +127,9 @@ class CodeBlocks(LineProcessor):
 
 
 class Toc(LineProcessor):
+    """Replace Jekyll syntax for Table of Content by Pelican one.
+    Remove line containing "* Table of Contents" and replace line containing "{:toc}" by "[TOC]\n"
+    """
     def process_line(self, line_number: int, line: str) -> (bool, str | None):
         if "* Table of Contents" in line:
             return True, None
@@ -116,6 +140,10 @@ class Toc(LineProcessor):
 
 
 class InternalContentLinks(LineProcessor):
+    """Replace Jekyll syntax for links to other pages by the Pelican one.
+    Search for parenthesis in the line containing "{% post_url %}" (support missing or additional blank spaces around
+    "post_url") and replace it by "{filename}"
+    """
     _post_url_tag = "post_url"
 
     @staticmethod
@@ -155,6 +183,10 @@ class InternalContentLinks(LineProcessor):
 
 
 class SiteLinks(LineProcessor):
+    """Replace Jekyll syntax for links to static resources the Pelican one.
+    Search for parenthesis in the line containing "{{ site.url }}" (support missing or additional blank spaces around
+    "site.url") and replace it by "{static}"
+    """
     _site_url_tag = "site.url"
 
     @staticmethod
@@ -204,16 +236,19 @@ def _create_processors():
 
 
 def migrate(md_file):
+    """create a backup file (if it does not exist yet) and overwrite file by reading backup file line by line
+    and writing the same line if no processor changed it, otherwise writing content provided by the 1st
+    processor returned by _create_processors() that declared processing the line (see LineProcessor.process_line())
+    """
     print(f"Migrating {md_file}...")
 
     backup_file = md_file.parent / f"{md_file.stem}.md.backup"
-
     if not backup_file.exists():
         shutil.copy(md_file, backup_file)
 
     processors = _create_processors()
     with backup_file.open('r') as f_backup, md_file.open('w') as f_md:
-        for n,l in enumerate(f_backup):
+        for n, l in enumerate(f_backup):
             modified = False
             for p in processors:
                 modified, new_line = p.process_line(n, l)
